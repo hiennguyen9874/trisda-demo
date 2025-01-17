@@ -1,0 +1,104 @@
+x-restart-policy: &restart_policy
+  restart: unless-stopped
+
+x-logging: &logging
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "2"
+
+x-deploy-resources: &deploy_resources
+  deploy:
+    resources:
+      limits:
+        cpus: "4.0"
+        memory: 10G
+
+x-healthcheck: &healthcheck
+  interval: 10s
+  start_period: 30s
+  timeout: 10s
+  retries: 5
+
+services:
+  autoheal:
+    <<: [*restart_policy, *logging, *deploy_resources]
+    image: willfarrell/autoheal:1.2.0
+    network_mode: none
+    volumes:
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      AUTOHEAL_CONTAINER_LABEL: autoheal-${COMPOSE_PROJECT_NAME}
+      AUTOHEAL_INTERVAL: 10
+      AUTOHEAL_START_PERIOD: 300
+
+  proxy:
+    <<: [*restart_policy, *logging, *deploy_resources]
+    image: traefik:v2.5
+    hostname: ${COMPOSE_PROJECT_NAME}_proxy
+    ports:
+      - ${APP__PORT}:80
+      # - 8080:8080
+    expose:
+      - 8080
+    volumes:
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - default
+    command:
+      # Enable Docker in Traefik, so that it reads labels from Docker services
+      - --providers.docker=true
+      # Add a constraint to only use services with the label for this stack
+      - --providers.docker.constraints=Label(`traefik.constraint-label`, `${COMPOSE_PROJECT_NAME}`)
+      # Do not expose all Docker services, only the ones explicitly exposed
+      - --providers.docker.exposedbydefault=false
+      # Create an entrypoint "http" listening on port 80
+      - --entrypoints.${COMPOSE_PROJECT_NAME}_http.address=:80
+      # Enable the access log, with HTTP requests
+      - --accesslog
+      # Enable the Traefik log, for configurations and errors
+      - --log
+      # Enable debug logging for local development
+      - --log.level=DEBUG
+      # Enable the Dashboard and API
+      # - --api
+      # Traefik will listen on port 8080 by default for API request.
+      # - --api.insecure=true
+      # Enable the metrics, with prometheus
+      # - --metrics.prometheus=true
+      # Enable ping with Traefik
+      - --ping
+    labels:
+      - traefik.enable=true
+      - traefik.constraint-label=${COMPOSE_PROJECT_NAME}
+      # Defines a default docker network to use for connections to all containers.
+      - traefik.docker.network=${COMPOSE_PROJECT_NAME}_default
+      - traefik.http.routers.${COMPOSE_PROJECT_NAME}_proxy.entrypoints=${COMPOSE_PROJECT_NAME}_http
+      - traefik.http.services.${COMPOSE_PROJECT_NAME}_proxy.loadbalancer.server.port=80
+      - autoheal-${COMPOSE_PROJECT_NAME}=true
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "traefik", "healthcheck", "--ping"]
+
+  starrocks:
+    <<: [*restart_policy, *logging, *deploy_resources]
+    image: starrocks/allin1-ubuntu:3.3.9
+    hostname: ${COMPOSE_PROJECT_NAME}_starrocks
+    expose:
+      - 9030 
+      - 8030 
+      - 8040
+    networks:
+      - default
+    volumes:
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+      - app-starrocks-data:/data/deploy/starrocks/be/storage
+
+volumes:
+  app-starrocks-data:
