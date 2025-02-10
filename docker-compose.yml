@@ -100,5 +100,12 @@ services:
       - /etc/localtime:/etc/localtime:ro
       - app-starrocks-data:/data/deploy/starrocks/be/storage
 
+  kafka-streams-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      KAFKA_BROKER: 10.1.1.41:9092
+
 volumes:
   app-starrocks-data:

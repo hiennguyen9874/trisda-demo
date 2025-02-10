@@ -1,0 +1,11 @@
+.git/
+**/.git/
+**/.vscode/
+**/.gitignore
+# **/.gitkeep
+
+Dockerfile
+.dockerignore
+node_modules
+npm-debug.log
+dist
