@@ -24,9 +24,10 @@ import org.apache.kafka.streams.processor.TimestampExtractor;
 
 public class KafkaStreamsApp {
   private static final String INPUT_TOPIC = "tris-road";
-  private static final String OUTPUT_TOPIC = "tris-road-count";
+  private static final String OUTPUT_TOPIC = "tris_road_count";
   private static final String STATE_STORE_NAME = "tris-road";
   private static final ObjectMapper MAPPER = new ObjectMapper();
+  private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.of("UTC"));
 
   public static void main(String[] args) {
     Properties props = new Properties();
@@ -100,8 +101,10 @@ public class KafkaStreamsApp {
         .map((windowedKey, counts) -> {
           ObjectNode result = MAPPER.createObjectNode();
           result.put("deviceid", windowedKey.key());
-          result.put("window_start", windowedKey.window().start());
-          result.put("window_end", windowedKey.window().end());
+          // result.put("window_start", windowedKey.window().start());
+          // result.put("window_end", windowedKey.window().end());
+          result.put("window_start", FORMATTER.format(Instant.ofEpochMilli(windowedKey.window().start())));
+          result.put("window_end", FORMATTER.format(Instant.ofEpochMilli(windowedKey.window().end())));
           // Flatten the label_counts
           counts.fields().forEachRemaining(
               entry -> result.put(entry.getKey(), entry.getValue().asInt()));

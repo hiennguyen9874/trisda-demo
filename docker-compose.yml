@@ -90,15 +90,104 @@ services:
     image: starrocks/allin1-ubuntu:3.3.9
     hostname: ${COMPOSE_PROJECT_NAME}_starrocks
     expose:
-      - 9030 
-      - 8030 
+      - 9030
+      - 8030
       - 8040
     networks:
       - default
     volumes:
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
-      - app-starrocks-data:/data/deploy/starrocks/be/storage
+      # - app-starrocks-data:/data/deploy/starrocks/be/storage
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "nc", "-z", "localhost", "9030"]
+
+  mysql-client:
+    image: mysql
+    networks:
+      - default
+    depends_on:
+      starrocks:
+        condition: service_healthy
+        restart: true
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - "mysql -h starrocks -P 9030 -u root < /init.sql"
+    volumes:
+      - ./mysql-client/init.sql:/init.sql
+    restart: "no"
+
+  sink-connect:
+    <<: [*restart_policy, *logging, *deploy_resources]
+    image: confluentinc/cp-kafka-connect:7.4.8
+    # hostname: ${COMPOSE_PROJECT_NAME}_sink_connect
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: 10.1.1.41:9092
+      CONNECT_REST_PORT: 8083
+      CONNECT_GROUP_ID: "connect-cluster"
+      CONNECT_CONFIG_STORAGE_TOPIC: "connect-configs"
+      CONNECT_CONFIG_STORAGE_PARTITIONS: 1
+      # CONNECT_CONFIG_STORAGE_CLEANUP.POLICY: compact
+      CONNECT_OFFSET_STORAGE_TOPIC: "connect-offsets"
+      CONNECT_OFFSET_STORAGE_PARTITIONS: 1
+      CONNECT_OFFSET_STORAGE_CLEANUP.POLICY: compact
+      CONNECT_OFFSET_FLUSH_INTERVAL_MS: 10000
+      CONNECT_STATUS_STORAGE_TOPIC: "connect-status"
+      CONNECT_STATUS_STORAGE_PARTITIONS: 1
+      # CONNECT_STATUS_STORAGE_CLEANUP.POLICY: compact
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: "1"
+      CONNECT_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_INTERNAL_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: 'false'
+      CONNECT_INTERNAL_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: 'false'
+      CONNECT_REST_ADVERTISED_HOST_NAME: "starrocks"
+      # CONNECT_PLUGIN_PATH: "/usr/share/java,/etc/kafka-connect/jars,/connect-plugins"
+      CONNECT_PLUGIN_PATH: /connect-plugins
+      CONNECT_REPLICATION_FACTOR: 1
+      CONNECT_LOG4J_ROOT_LOGLEVEL: INFO
+      CONNECT_LOG4J_LOGGERS: org.reflections=ERROR
+      JAVA_OPTS: "-Xmx 2g -Xms 2g"
+      CONNECT_AUTO_CREATE_TOPICS_ENABLE: “true”
+      TOPIC_CREATION_ENABLE: “true”
+      TOPIC_CREATION_DEFAULT_REPLICATION_FACTOR: 1
+      TOPIC_CREATION_DEFAULT_PARTITIONS: 1
+      TOPIC_CREATION_DEFAULT__CLEANUP_POLICY: compact
+      TOPIC_CREATION_DEFAULT_COMPRESSION_TYPE: “lz4”
+    volumes:
+      - ./sink-connect/connect-plugins:/connect-plugins
+    # expose:
+    #   - 8083
+    depends_on:
+      starrocks:
+        condition: service_healthy
+        restart: true
+      mysql-client:
+        condition: service_completed_successfully
+        restart: true
+    # networks:
+    #   - default
+    network_mode: "service:starrocks"  # Share network with `starrocks`
+
+  create-connectors:
+    <<: [*logging, *deploy_resources]
+    image: curlimages/curl:8.11.1
+    volumes:
+      - ./connectors/connect-configs:/connect-configs
+      - ./connectors/auto-create-connector.sh:/auto-create-connector.sh
+    entrypoint: ["/bin/sh","-c"]
+    command: /auto-create-connector.sh
+    depends_on:
+      sink-connect:
+        condition: service_started
+        restart: true
+    networks:
+      - default
+    restart: "no"
 
   kafka-streams-app:
     build:
@@ -109,3 +198,4 @@ services:
 
 volumes:
   app-starrocks-data:
+  app-pgadmin-data:

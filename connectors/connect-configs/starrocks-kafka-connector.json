@@ -1,0 +1,19 @@
+{
+  "name": "starrocks-kafka-connector",
+  "config": {
+    "connector.class": "com.starrocks.connector.kafka.StarRocksSinkConnector",
+    "tasks.max": "1",
+    "topics": "tris_road_count",
+    "key.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "key.converter.schemas.enable": "false",
+    "value.converter.schemas.enable": "false",
+    "starrocks.http.url": "starrocks:8030",
+    "starrocks.database.name": "trisda",
+    "starrocks.username": "root",
+    "starrocks.password": "",
+    "sink.properties.strip_outer_array": "true",
+    "connect.timeoutms": "3000",
+    "starrocks.topic2table.map": "tris_road_count:tris_road_count"
+  }
+}
