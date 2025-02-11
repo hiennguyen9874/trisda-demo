@@ -1,3 +1,6 @@
+include:
+  - superset/docker-compose.yml
+
 x-restart-policy: &restart_policy
   restart: unless-stopped
 
@@ -191,7 +194,7 @@ services:
 
   kafka-streams-app:
     build:
-      context: .
+      context: kafka-streams
       dockerfile: Dockerfile
     environment:
       KAFKA_BROKER: 10.1.1.41:9092

@@ -2,4 +2,3 @@
 
 ## Build kafka streams
 - `mvn clean install`
-

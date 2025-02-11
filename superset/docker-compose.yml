@@ -1,0 +1,108 @@
+x-restart-policy: &restart_policy
+  restart: unless-stopped
+
+x-logging: &logging
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "2"
+
+x-deploy-resources: &deploy_resources
+  deploy:
+    resources:
+      limits:
+        cpus: "2.0"
+        memory: 5G
+
+x-superset-defaults: &superset_defaults
+  <<: [*restart_policy, *logging, *deploy_resources]
+  image: ghcr.io/hiennguyen9874/trisda-demo/superset:${APP__VERSION}
+  build:
+    context: .
+    dockerfile: Dockerfile
+    args:
+      SUPERSET_VERSION: "4.1.1-py310"
+  user: "root"
+  env_file:
+    - path: docker/.env # default
+      required: true
+    - path: docker/.env-local # optional override
+      required: false
+  depends_on:
+    - superset-redis
+    - superset-db
+  volumes:
+    - /etc/timezone:/etc/timezone:ro
+    - /etc/localtime:/etc/localtime:ro
+    - app-superset-home-data:/app/superset_home
+    - ./docker:/app/docker
+  networks:
+    - superset
+    - default
+
+services:
+  superset-redis:
+    <<: [*restart_policy, *logging, *deploy_resources]
+    image: redis:7.4.2-alpine
+    volumes:
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+      - app-superset-redis-data:/data
+    networks:
+      - superset
+
+  superset-db:
+    <<: [*restart_policy, *logging, *deploy_resources]
+    env_file:
+      - path: docker/.env # default
+        required: true
+      - path: docker/.env-local # optional override
+        required: false
+    image: postgres:15-alpine
+    volumes:
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+      - app-superset-db-data:/var/lib/postgresql/data
+      - ./docker/docker-entrypoint-initdb.d:/docker-entrypoint-initdb.d
+    networks:
+      - superset
+
+  superset:
+    <<: [*superset_defaults, *restart_policy, *logging, *deploy_resources]
+    command: ["/app/docker/docker-bootstrap.sh", "app-gunicorn"]
+    ports:
+      - ${APP__SUPERSET_PORT}:8088
+    expose:
+      - 8088
+
+  superset-init:
+    <<: [*superset_defaults, *logging, *deploy_resources]
+    command: ["/app/docker/docker-init.sh"]
+    healthcheck:
+      disable: true
+    restart: "no"
+
+  superset-worker:
+    <<: [*superset_defaults, *restart_policy, *logging, *deploy_resources]
+    command: ["/app/docker/docker-bootstrap.sh", "worker"]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "celery -A superset.tasks.celery_app:app inspect ping -d celery@$$HOSTNAME",
+        ]
+
+  superset-worker-beat:
+    <<: [*superset_defaults, *restart_policy, *logging, *deploy_resources]
+    command: ["/app/docker/docker-bootstrap.sh", "beat"]
+    healthcheck:
+      disable: true
+
+volumes:
+  app-superset-redis-data:
+  app-superset-db-data:
+  app-superset-home-data:
+
+networks:
+  superset:
