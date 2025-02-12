@@ -197,9 +197,6 @@ services:
       - default
 
 volumes:
-  app-kafka-data:
-  app-starrocks-data:
-  app-pgadmin-data:
   app-kafka-streams-state:
   app-starrocks-fe-data:
   app-starrocks-be-data:
