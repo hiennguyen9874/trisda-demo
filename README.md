@@ -1,4 +1,19 @@
-# TrisDA Demo using kafka streams, starrocks, superset
+# TrisDA Demo - Real-Time Analytics With StarRocks, Kafka Streams, Kafka Connect, Superset
 
-## Build kafka streams
-- `mvn clean install`
+![trisda-demo](docs/architecture.png)
+
+## Build
+
+- Build kafka streams: `mvn clean install`
+
+- Build docker-compose: `docker-compose build`
+
+## Up docker
+
+- `docker-compose up -d`
+
+## Usage
+
+- Link superset: [localhost:25678](http://localhost:25678)
+- User: `admin`
+- Password: `admin`
