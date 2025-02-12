@@ -17,7 +17,7 @@ public class DeduplicationTransformer
   private ProcessorContext context;
 
   private static final long EXPIRATION_TIME_MS =
-      Duration.ofMinutes(10).toMillis(); // 10-minute TTL
+      Duration.ofMinutes(1).toMillis(); // 10-minute TTL
   private static final Duration PUNCTUATE_INTERVAL_MS =
       Duration.ofMinutes(1); // Cleanup every 1 min
 
@@ -56,16 +56,9 @@ public class DeduplicationTransformer
 
     long currentTimestamp = context.timestamp();
     Long lastSeenTimestamp = store.get(objectId);
+    store.put(objectId, currentTimestamp);
 
-    if (lastSeenTimestamp == null || (currentTimestamp - lastSeenTimestamp) >
-                                         EXPIRATION_TIME_MS) {
-      try {
-        store.put(objectId, currentTimestamp);
-      } catch (Exception e) {
-        e.printStackTrace();
-        System.out.println("Error writing to state store: " + e.getMessage());
-      }
-
+    if (lastSeenTimestamp == null) {
       return KeyValue.pair(deviceId, value);
     }
 

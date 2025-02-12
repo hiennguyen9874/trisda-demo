@@ -8,31 +8,38 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.common.serialization.Serde;
 import org.apache.kafka.common.serialization.Serdes;
 import org.apache.kafka.streams.*;
 import org.apache.kafka.streams.KafkaStreams;
 import org.apache.kafka.streams.KeyValue;
 import org.apache.kafka.streams.StreamsBuilder;
-import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.streams.StreamsConfig;
 import org.apache.kafka.streams.Topology;
 import org.apache.kafka.streams.kstream.*;
+import org.apache.kafka.streams.processor.TimestampExtractor;
 import org.apache.kafka.streams.state.KeyValueStore;
 import org.apache.kafka.streams.state.Stores;
-import org.apache.kafka.streams.processor.TimestampExtractor;
 
 public class KafkaStreamsApp {
   private static final String INPUT_TOPIC = "tris-road";
   private static final String OUTPUT_TOPIC = "tris_road_count";
   private static final String STATE_STORE_NAME = "tris-road";
   private static final ObjectMapper MAPPER = new ObjectMapper();
-  private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss").withZone(ZoneId.of("UTC"));
+  private static final DateTimeFormatter FORMATTER =
+      DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")
+          .withZone(ZoneId.of("UTC"));
 
   public static void main(String[] args) {
     Properties props = new Properties();
     props.put(StreamsConfig.APPLICATION_ID_CONFIG, "kafka-stream-app");
-    props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, "10.1.1.41:9092");
+    // Get Kafka broker from environment variable (default to localhost:9092 if
+    // not set)
+    String kafkaBroker =
+        System.getenv().getOrDefault("KAFKA_BROKER", "localhost:9092");
+
+    props.put(StreamsConfig.BOOTSTRAP_SERVERS_CONFIG, kafkaBroker);
     props.put(StreamsConfig.DEFAULT_KEY_SERDE_CLASS_CONFIG,
               Serdes.String().getClass());
     props.put(StreamsConfig.DEFAULT_VALUE_SERDE_CLASS_CONFIG,
@@ -103,8 +110,10 @@ public class KafkaStreamsApp {
           result.put("deviceid", windowedKey.key());
           // result.put("window_start", windowedKey.window().start());
           // result.put("window_end", windowedKey.window().end());
-          result.put("window_start", FORMATTER.format(Instant.ofEpochMilli(windowedKey.window().start())));
-          result.put("window_end", FORMATTER.format(Instant.ofEpochMilli(windowedKey.window().end())));
+          result.put("window_start", FORMATTER.format(Instant.ofEpochMilli(
+                                         windowedKey.window().start())));
+          result.put("window_end", FORMATTER.format(Instant.ofEpochMilli(
+                                       windowedKey.window().end())));
           // Flatten the label_counts
           counts.fields().forEachRemaining(
               entry -> result.put(entry.getKey(), entry.getValue().asInt()));
@@ -118,8 +127,8 @@ public class KafkaStreamsApp {
     System.out.println("Kafka Streams application started...");
 
     Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-      System.out.println("Shutting down Kafka Streams...");
-      streams.close();
+      System.out.println("Shutting down Kafka Streams in 10 seconds...");
+      streams.close(Duration.ofSeconds(10));
     }));
   }
 

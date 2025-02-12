@@ -38,56 +38,6 @@ services:
       AUTOHEAL_INTERVAL: 10
       AUTOHEAL_START_PERIOD: 300
 
-  proxy:
-    <<: [*restart_policy, *logging, *deploy_resources]
-    image: traefik:v2.5
-    hostname: ${COMPOSE_PROJECT_NAME}_proxy
-    ports:
-      - ${APP__PORT}:80
-      # - 8080:8080
-    expose:
-      - 8080
-    volumes:
-      - /etc/timezone:/etc/timezone:ro
-      - /etc/localtime:/etc/localtime:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-    networks:
-      - default
-    command:
-      # Enable Docker in Traefik, so that it reads labels from Docker services
-      - --providers.docker=true
-      # Add a constraint to only use services with the label for this stack
-      - --providers.docker.constraints=Label(`traefik.constraint-label`, `${COMPOSE_PROJECT_NAME}`)
-      # Do not expose all Docker services, only the ones explicitly exposed
-      - --providers.docker.exposedbydefault=false
-      # Create an entrypoint "http" listening on port 80
-      - --entrypoints.${COMPOSE_PROJECT_NAME}_http.address=:80
-      # Enable the access log, with HTTP requests
-      - --accesslog
-      # Enable the Traefik log, for configurations and errors
-      - --log
-      # Enable debug logging for local development
-      - --log.level=DEBUG
-      # Enable the Dashboard and API
-      # - --api
-      # Traefik will listen on port 8080 by default for API request.
-      # - --api.insecure=true
-      # Enable the metrics, with prometheus
-      # - --metrics.prometheus=true
-      # Enable ping with Traefik
-      - --ping
-    labels:
-      - traefik.enable=true
-      - traefik.constraint-label=${COMPOSE_PROJECT_NAME}
-      # Defines a default docker network to use for connections to all containers.
-      - traefik.docker.network=${COMPOSE_PROJECT_NAME}_default
-      - traefik.http.routers.${COMPOSE_PROJECT_NAME}_proxy.entrypoints=${COMPOSE_PROJECT_NAME}_http
-      - traefik.http.services.${COMPOSE_PROJECT_NAME}_proxy.loadbalancer.server.port=80
-      - autoheal-${COMPOSE_PROJECT_NAME}=true
-    healthcheck:
-      <<: *healthcheck
-      test: ["CMD", "traefik", "healthcheck", "--ping"]
-
   starrocks:
     <<: [*restart_policy, *logging, *deploy_resources]
     image: starrocks/allin1-ubuntu:3.3.9
@@ -126,7 +76,7 @@ services:
     image: confluentinc/cp-kafka-connect:7.4.8
     # hostname: ${COMPOSE_PROJECT_NAME}_sink_connect
     environment:
-      CONNECT_BOOTSTRAP_SERVERS: 10.1.1.41:9092
+      CONNECT_BOOTSTRAP_SERVERS: ${KAFKA_BROKER:-localhost:9092}
       CONNECT_REST_PORT: 8083
       CONNECT_GROUP_ID: "connect-cluster"
       CONNECT_CONFIG_STORAGE_TOPIC: "connect-configs"
@@ -196,9 +146,15 @@ services:
     build:
       context: kafka-streams
       dockerfile: Dockerfile
+    hostname: ${COMPOSE_PROJECT_NAME}_kafka_streams_app
     environment:
-      KAFKA_BROKER: 10.1.1.41:9092
+      KAFKA_BROKER: ${KAFKA_BROKER:-localhost:9092}
+    volumes:
+      - app-kafka-streams-state:/tmp/kafka-streams/
+
 
 volumes:
+  app-kafka-data:
   app-starrocks-data:
   app-pgadmin-data:
+  app-kafka-streams-state:
