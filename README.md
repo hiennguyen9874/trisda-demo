@@ -1,6 +1,6 @@
 # TrisDA Demo - Real-Time Analytics With StarRocks, Kafka Streams, Kafka Connect, Superset
 
-![trisda-demo](docs/architecture.png)
+![architecture](docs/architecture.png)
 
 ## Build
 
@@ -17,3 +17,7 @@
 - Link superset: [localhost:25678](http://localhost:25678)
 - User: `admin`
 - Password: `admin`
+
+## Chart
+
+![chart](docs/chart.png)

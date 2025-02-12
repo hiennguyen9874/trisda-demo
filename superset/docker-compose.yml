@@ -77,6 +77,13 @@ services:
     networks:
       - superset
 
+  superset-init:
+    <<: [*superset_defaults, *logging, *deploy_resources]
+    command: ["/app/docker/docker-init.sh"]
+    healthcheck:
+      disable: true
+    restart: "no"
+
   superset:
     <<: [*superset_defaults, *restart_policy, *logging, *deploy_resources]
     command: ["/app/docker/docker-bootstrap.sh", "app-gunicorn"]
@@ -84,13 +91,16 @@ services:
       - ${APP__SUPERSET_PORT}:8088
     expose:
       - 8088
-
-  superset-init:
-    <<: [*superset_defaults, *logging, *deploy_resources]
-    command: ["/app/docker/docker-init.sh"]
-    healthcheck:
-      disable: true
-    restart: "no"
+    depends_on:
+      superset-redis:
+        condition: service_started
+        restart: true
+      superset-db:
+        condition: service_started
+        restart: true
+      superset-init:
+        condition: service_completed_successfully
+        restart: true
 
   superset-worker:
     <<: [*superset_defaults, *restart_policy, *logging, *deploy_resources]
@@ -102,12 +112,32 @@ services:
           "CMD-SHELL",
           "celery -A superset.tasks.celery_app:app inspect ping -d celery@$$HOSTNAME",
         ]
+    depends_on:
+      superset-redis:
+        condition: service_started
+        restart: true
+      superset-db:
+        condition: service_started
+        restart: true
+      superset-init:
+        condition: service_completed_successfully
+        restart: true
 
   superset-worker-beat:
     <<: [*superset_defaults, *restart_policy, *logging, *deploy_resources]
     command: ["/app/docker/docker-bootstrap.sh", "beat"]
     healthcheck:
       disable: true
+    depends_on:
+      superset-redis:
+        condition: service_started
+        restart: true
+      superset-db:
+        condition: service_started
+        restart: true
+      superset-init:
+        condition: service_completed_successfully
+        restart: true
 
 volumes:
   app-superset-redis-data:

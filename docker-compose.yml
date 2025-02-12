@@ -56,7 +56,9 @@ services:
     networks:
       - default
     volumes:
-       - app-starrocks-fe-data:/opt/starrocks/fe/meta
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+      - app-starrocks-fe-data:/opt/starrocks/fe/meta
     healthcheck:
       <<: *healthcheck
       test: ["CMD", "nc", "-z", "localhost", "9030"]
@@ -79,6 +81,8 @@ services:
     depends_on:
       - starrocks-fe
     volumes:
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
       - app-starrocks-be-data:/opt/starrocks/be/storage
     healthcheck:
       <<: *healthcheck
@@ -99,6 +103,8 @@ services:
     command:
       - "mysql -h starrocks-fe -P 9030 -u root < /init.sql"
     volumes:
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
       - ./mysql-client/init.sql:/init.sql
     restart: "no"
 
@@ -126,9 +132,9 @@ services:
       CONNECT_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
       CONNECT_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
       CONNECT_INTERNAL_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
-      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: 'false'
+      CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: "false"
       CONNECT_INTERNAL_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
-      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: 'false'
+      CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: "false"
       CONNECT_REST_ADVERTISED_HOST_NAME: "sink-connect"
       # CONNECT_PLUGIN_PATH: "/usr/share/java,/etc/kafka-connect/jars,/connect-plugins"
       CONNECT_PLUGIN_PATH: /connect-plugins
@@ -143,6 +149,8 @@ services:
       TOPIC_CREATION_DEFAULT__CLEANUP_POLICY: compact
       TOPIC_CREATION_DEFAULT_COMPRESSION_TYPE: “lz4”
     volumes:
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
       - ./sink-connect/connect-plugins:/connect-plugins
     expose:
       - 8083
@@ -163,6 +171,8 @@ services:
     <<: [*logging, *deploy_resources]
     image: curlimages/curl:8.11.1
     volumes:
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
       - ./connectors/connect-configs:/connect-configs
       - ./connectors/auto-create-connector.sh:/auto-create-connector.sh
     entrypoint: ["/bin/sh","-c"]
@@ -192,6 +202,8 @@ services:
     environment:
       KAFKA_BROKER: ${KAFKA__BROKER:-localhost:9092}
     volumes:
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
       - app-kafka-streams-state:/tmp/kafka-streams/
     networks:
       - default
