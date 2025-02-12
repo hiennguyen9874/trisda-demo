@@ -14,4 +14,5 @@ CREATE TABLE IF NOT EXISTS `tris_road_count` (
 )
 PRIMARY KEY (deviceid, window_start, window_end)
 DISTRIBUTED BY HASH (window_start)
+PROPERTIES ("replication_num" = "1")
 ;

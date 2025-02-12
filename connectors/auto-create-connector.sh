@@ -1,6 +1,6 @@
 #!/bin/sh
 SINK_CONNECTOR_NAME="starrocks-kafka-connector"
-SINK_CONNECT_URL="http://starrocks:8083/connectors"
+SINK_CONNECT_URL="http://sink-connect:8083/connectors"
 SINK_CONFIG_FILE="/connect-configs/starrocks-kafka-connector.json"
 
 # Wait for Sink Kafka Connect to be ready

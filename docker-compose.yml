@@ -20,7 +20,7 @@ x-deploy-resources: &deploy_resources
 
 x-healthcheck: &healthcheck
   interval: 10s
-  start_period: 30s
+  start_period: 10s
   timeout: 10s
   retries: 5
 
@@ -38,35 +38,66 @@ services:
       AUTOHEAL_INTERVAL: 10
       AUTOHEAL_START_PERIOD: 300
 
-  starrocks:
-    <<: [*restart_policy, *logging, *deploy_resources]
-    image: starrocks/allin1-ubuntu:3.3.9
-    hostname: ${COMPOSE_PROJECT_NAME}_starrocks
+  starrocks-fe:
+    image: starrocks/fe-ubuntu:3.4.0
+    hostname: ${COMPOSE_PROJECT_NAME}-starrocks-fe
+    command:
+      - /bin/bash
+      - -c
+      - |
+        /opt/starrocks/fe_entrypoint.sh starrocks-fe
+    environment:
+      - HOST_TYPE=FQDN
+      - TZ=Asia/Ho_Chi_Minh
     expose:
-      - 9030
       - 8030
-      - 8040
+      - 9020
+      - 9030
     networks:
       - default
     volumes:
-      - /etc/timezone:/etc/timezone:ro
-      - /etc/localtime:/etc/localtime:ro
-      # - app-starrocks-data:/data/deploy/starrocks/be/storage
+       - app-starrocks-fe-data:/opt/starrocks/fe/meta
     healthcheck:
       <<: *healthcheck
       test: ["CMD", "nc", "-z", "localhost", "9030"]
+
+  starrocks-be:
+    image: starrocks/be-ubuntu:3.4.0
+    hostname: ${COMPOSE_PROJECT_NAME}-starrocks-be
+    command:
+      - /bin/bash
+      - -c
+      - |
+        /opt/starrocks/be_entrypoint.sh starrocks-fe
+    environment:
+      - HOST_TYPE=FQDN
+      - TZ=Asia/Ho_Chi_Minh
+    expose:
+      - 8040
+    networks:
+      - default
+    depends_on:
+      - starrocks-fe
+    volumes:
+      - app-starrocks-be-data:/opt/starrocks/be/storage
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "curl", "-f", "http://localhost:8040"]
 
   mysql-client:
     image: mysql
     networks:
       - default
     depends_on:
-      starrocks:
+      starrocks-fe:
         condition: service_healthy
+        restart: true
+      starrocks-be:
+        condition: service_started
         restart: true
     entrypoint: ["/bin/sh", "-c"]
     command:
-      - "mysql -h starrocks -P 9030 -u root < /init.sql"
+      - "mysql -h starrocks-fe -P 9030 -u root < /init.sql"
     volumes:
       - ./mysql-client/init.sql:/init.sql
     restart: "no"
@@ -74,9 +105,9 @@ services:
   sink-connect:
     <<: [*restart_policy, *logging, *deploy_resources]
     image: confluentinc/cp-kafka-connect:7.4.8
-    # hostname: ${COMPOSE_PROJECT_NAME}_sink_connect
+    hostname: ${COMPOSE_PROJECT_NAME}-sink-connect
     environment:
-      CONNECT_BOOTSTRAP_SERVERS: ${KAFKA_BROKER:-localhost:9092}
+      CONNECT_BOOTSTRAP_SERVERS: ${KAFKA__BROKER:-localhost:9092}
       CONNECT_REST_PORT: 8083
       CONNECT_GROUP_ID: "connect-cluster"
       CONNECT_CONFIG_STORAGE_TOPIC: "connect-configs"
@@ -98,7 +129,7 @@ services:
       CONNECT_KEY_CONVERTER_SCHEMAS_ENABLE: 'false'
       CONNECT_INTERNAL_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
       CONNECT_VALUE_CONVERTER_SCHEMAS_ENABLE: 'false'
-      CONNECT_REST_ADVERTISED_HOST_NAME: "starrocks"
+      CONNECT_REST_ADVERTISED_HOST_NAME: "sink-connect"
       # CONNECT_PLUGIN_PATH: "/usr/share/java,/etc/kafka-connect/jars,/connect-plugins"
       CONNECT_PLUGIN_PATH: /connect-plugins
       CONNECT_REPLICATION_FACTOR: 1
@@ -113,18 +144,20 @@ services:
       TOPIC_CREATION_DEFAULT_COMPRESSION_TYPE: “lz4”
     volumes:
       - ./sink-connect/connect-plugins:/connect-plugins
-    # expose:
-    #   - 8083
+    expose:
+      - 8083
     depends_on:
-      starrocks:
+      starrocks-fe:
         condition: service_healthy
+        restart: true
+      starrocks-be:
+        condition: service_started
         restart: true
       mysql-client:
         condition: service_completed_successfully
         restart: true
-    # networks:
-    #   - default
-    network_mode: "service:starrocks"  # Share network with `starrocks`
+    networks:
+      - default
 
   create-connectors:
     <<: [*logging, *deploy_resources]
@@ -135,8 +168,17 @@ services:
     entrypoint: ["/bin/sh","-c"]
     command: /auto-create-connector.sh
     depends_on:
+      starrocks-fe:
+        condition: service_healthy
+        restart: true
+      starrocks-be:
+        condition: service_started
+        restart: true
       sink-connect:
         condition: service_started
+        restart: true
+      mysql-client:
+        condition: service_completed_successfully
         restart: true
     networks:
       - default
@@ -146,15 +188,18 @@ services:
     build:
       context: kafka-streams
       dockerfile: Dockerfile
-    hostname: ${COMPOSE_PROJECT_NAME}_kafka_streams_app
+    hostname: ${COMPOSE_PROJECT_NAME}-kafka-streams-app
     environment:
-      KAFKA_BROKER: ${KAFKA_BROKER:-localhost:9092}
+      KAFKA_BROKER: ${KAFKA__BROKER:-localhost:9092}
     volumes:
       - app-kafka-streams-state:/tmp/kafka-streams/
-
+    networks:
+      - default
 
 volumes:
   app-kafka-data:
   app-starrocks-data:
   app-pgadmin-data:
   app-kafka-streams-state:
+  app-starrocks-fe-data:
+  app-starrocks-be-data:

@@ -8,7 +8,7 @@
     "value.converter": "org.apache.kafka.connect.json.JsonConverter",
     "key.converter.schemas.enable": "false",
     "value.converter.schemas.enable": "false",
-    "starrocks.http.url": "starrocks:8030",
+    "starrocks.http.url": "starrocks-fe:8030",
     "starrocks.database.name": "trisda",
     "starrocks.username": "root",
     "starrocks.password": "",

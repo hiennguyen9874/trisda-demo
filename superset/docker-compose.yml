@@ -15,6 +15,12 @@ x-deploy-resources: &deploy_resources
         cpus: "2.0"
         memory: 5G
 
+x-healthcheck: &healthcheck
+  interval: 10s
+  start_period: 10s
+  timeout: 10s
+  retries: 5
+
 x-superset-defaults: &superset_defaults
   <<: [*restart_policy, *logging, *deploy_resources]
   image: ghcr.io/hiennguyen9874/trisda-demo/superset:${APP__VERSION}
@@ -51,6 +57,9 @@ services:
       - app-superset-redis-data:/data
     networks:
       - superset
+    healthcheck:
+      <<: *healthcheck
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
 
   superset-db:
     <<: [*restart_policy, *logging, *deploy_resources]
@@ -87,6 +96,7 @@ services:
     <<: [*superset_defaults, *restart_policy, *logging, *deploy_resources]
     command: ["/app/docker/docker-bootstrap.sh", "worker"]
     healthcheck:
+      <<: *healthcheck
       test:
         [
           "CMD-SHELL",
