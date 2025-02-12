@@ -1,4 +1,4 @@
-# TrisDA Demo - Real-Time Analytics With StarRocks, Kafka Streams, Kafka Connect, Superset
+# Real-Time Analytics With StarRocks, Kafka Streams, Kafka Connect, Superset
 
 ![architecture](docs/architecture.png)
 
